@@ -1,8 +1,8 @@
-# This is a Docker Compose file for setting up the morphic-stack environment.
+# This is a Docker Compose file for setting up the alBERT-stack environment.
 
-name: morphic-stack
+name: alBERT-stack
 services:
-  morphic:
+  alBERT:
     build:
       context: . # The build context is the current directory
       dockerfile: Dockerfile

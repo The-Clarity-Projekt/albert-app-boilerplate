@@ -61,7 +61,7 @@ async function performSearch(
   includeDomains: string[] = []
 ): Promise<SearchResults> {
   const apiUrl = "https://app.socrathink.com"
-  const apiKey = process.env.CLARITY_API_KEY
+  const apiKey = process.env.ALBERT_API_KEY
   console.log(apiUrl, apiKey)
 
   if (!apiUrl) {
