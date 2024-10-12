@@ -1,16 +1,12 @@
 import { tool } from 'ai'
 import { createStreamableValue } from 'ai/rsc'
-import Exa from 'exa-js'
 import { searchSchema } from '@/lib/schema/search'
 import { SearchSection } from '@/components/search-section'
 import { ToolProps } from '.'
-import { sanitizeUrl } from '@/lib/utils'
 import {
   SearchResultImage,
   SearchResults,
   SearchResultItem,
-  SearXNGResponse,
-  SearXNGResult
 } from '@/lib/types'
 
 export const searchTool = ({ uiStream, fullResponse }: ToolProps) =>
@@ -20,9 +16,7 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) =>
     execute: async ({
       query,
       max_results,
-      search_depth,
       include_domains,
-      exclude_domains
     }) => {
       let hasError = false
       // Append the search section
@@ -34,71 +28,23 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) =>
         />
       )
 
-      // Tavily API requires a minimum of 5 characters in the query
-      const filledQuery =
-        query.length < 5 ? query + ' '.repeat(5 - query.length) : query
       let searchResult: SearchResults
-      const searchAPI =
-        (process.env.SEARCH_API as 'tavily' | 'exa' | 'searxng') || 'tavily'
-
-      const effectiveSearchDepth =
-        searchAPI === 'searxng' &&
-        process.env.SEARXNG_DEFAULT_DEPTH === 'advanced'
-          ? 'advanced'
-          : search_depth || 'basic'
-
-      console.log(
-        `Using search API: ${searchAPI}, Search Depth: ${effectiveSearchDepth}`
-      )
 
       try {
-        if (searchAPI === 'searxng' && effectiveSearchDepth === 'advanced') {
-          // API route for advanced SearXNG search
-          const baseUrl =
-            process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-          const response = await fetch(`${baseUrl}/api/advanced-search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              query: filledQuery,
-              maxResults: max_results,
-              searchDepth: effectiveSearchDepth,
-              includeDomains: include_domains,
-              excludeDomains: exclude_domains
-            })
-          })
-          if (!response.ok) {
-            throw new Error(
-              `Advanced search API error: ${response.status} ${response.statusText}`
-            )
-          }
-          searchResult = await response.json()
-        } else {
-          searchResult = await (searchAPI === 'tavily'
-            ? tavilySearch
-            : searchAPI === 'exa'
-            ? exaSearch
-            : searxngSearch)(
-            filledQuery,
-            max_results,
-            effectiveSearchDepth === 'advanced' ? 'advanced' : 'basic',
-            include_domains,
-            exclude_domains
-          )
-        }
+        searchResult = await performSearch(query, max_results, include_domains)
       } catch (error) {
         console.error('Search API error:', error)
         hasError = true
         searchResult = {
           results: [],
-          query: filledQuery,
+          query,
           images: [],
           number_of_results: 0
         }
       }
 
       if (hasError) {
-        fullResponse = `An error occurred while searching for "${filledQuery}".`
+        fullResponse = `An error occurred while searching for "${query}".`
         uiStream.update(null)
         streamResults.done()
         return searchResult
@@ -109,173 +55,91 @@ export const searchTool = ({ uiStream, fullResponse }: ToolProps) =>
     }
   })
 
-async function tavilySearch(
+async function performSearch(
   query: string,
   maxResults: number = 10,
-  searchDepth: 'basic' | 'advanced' = 'basic',
-  includeDomains: string[] = [],
-  excludeDomains: string[] = []
+  includeDomains: string[] = []
 ): Promise<SearchResults> {
-  const apiKey = process.env.TAVILY_API_KEY
-  if (!apiKey) {
-    throw new Error('TAVILY_API_KEY is not set in the environment variables')
-  }
-  const includeImageDescriptions = true
-  const response = await fetch('https://api.tavily.com/search', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      max_results: Math.max(maxResults, 5),
-      search_depth: searchDepth,
-      include_images: true,
-      include_image_descriptions: includeImageDescriptions,
-      include_answers: true,
-      include_domains: includeDomains,
-      exclude_domains: excludeDomains
-    })
-  })
+  const apiUrl = "https://app.socrathink.com"
+  const apiKey = process.env.CLARITY_API_KEY
+  console.log(apiUrl, apiKey)
 
-  if (!response.ok) {
-    throw new Error(
-      `Tavily API error: ${response.status} ${response.statusText}`
-    )
-  }
-
-  const data = await response.json()
-  const processedImages = includeImageDescriptions
-    ? data.images
-        .map(({ url, description }: { url: string; description: string }) => ({
-          url: sanitizeUrl(url),
-          description
-        }))
-        .filter(
-          (
-            image: SearchResultImage
-          ): image is { url: string; description: string } =>
-            typeof image === 'object' &&
-            image.description !== undefined &&
-            image.description !== ''
-        )
-    : data.images.map((url: string) => sanitizeUrl(url))
-
-  return {
-    ...data,
-    images: processedImages
-  }
-}
-
-async function exaSearch(
-  query: string,
-  maxResults: number = 10,
-  _searchDepth: string,
-  includeDomains: string[] = [],
-  excludeDomains: string[] = []
-): Promise<SearchResults> {
-  const apiKey = process.env.EXA_API_KEY
-  if (!apiKey) {
-    throw new Error('EXA_API_KEY is not set in the environment variables')
-  }
-
-  const exa = new Exa(apiKey)
-  const exaResults = await exa.searchAndContents(query, {
-    highlights: true,
-    numResults: maxResults,
-    includeDomains,
-    excludeDomains
-  })
-
-  return {
-    results: exaResults.results.map((result: any) => ({
-      title: result.title,
-      url: result.url,
-      content: result.highlight || result.text
-    })),
-    query,
-    images: [],
-    number_of_results: exaResults.results.length
-  }
-}
-
-async function searxngSearch(
-  query: string,
-  maxResults: number = 10,
-  searchDepth: string,
-  includeDomains: string[] = [],
-  excludeDomains: string[] = []
-): Promise<SearchResults> {
-  const apiUrl = process.env.SEARXNG_API_URL
   if (!apiUrl) {
-    throw new Error('SEARXNG_API_URL is not set in the environment variables')
+    throw new Error('SEARCH_API_URL is not set in the environment variables')
+  }
+
+  if (!apiKey) {
+    throw new Error('SEARCH_API_KEY is not set in the environment variables')
   }
 
   try {
-    // Construct the URL with query parameters
-    const url = new URL(`${apiUrl}/search`)
-    url.searchParams.append('q', query)
-    url.searchParams.append('format', 'json')
-    url.searchParams.append('categories', 'general,images')
-
-    // Apply search depth settings
-    if (searchDepth === 'advanced') {
-      url.searchParams.append('time_range', '')
-      url.searchParams.append('safesearch', '0')
-      url.searchParams.append('engines', 'google,bing,duckduckgo,wikipedia')
-    } else {
-      url.searchParams.append('time_range', 'year')
-      url.searchParams.append('safesearch', '1')
-      url.searchParams.append('engines', 'google,bing')
-    }
-
-    // Fetch results from SearXNG
-    const response = await fetch(url.toString(), {
-      method: 'GET',
+    const response = await fetch(`${apiUrl}/api/search`, {
+      method: 'POST',
       headers: {
-        Accept: 'application/json'
-      }
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey
+      },
+      body: JSON.stringify({
+        query,
+        maxResults,
+        includeDomains,
+        action: "search"
+      })
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`SearXNG API error (${response.status}):`, errorText)
-      throw new Error(
-        `SearXNG API error: ${response.status} ${response.statusText} - ${errorText}`
-      )
+      const errorData = await response.json()
+      console.log(errorData)
+      throw new Error(`Search API error: ${errorData.error} - ${errorData.details}`)
     }
 
-    const data: SearXNGResponse = await response.json()
+    const data = await response.json()
+    console.log(data)
 
-    // Separate general results and image results, and limit to maxResults
-    const generalResults = data.results
-      .filter(result => !result.img_src)
-      .slice(0, maxResults)
-    const imageResults = data.results
-      .filter(result => result.img_src)
-      .slice(0, maxResults)
+    const retrieveJinaContent = async (url: string): Promise<string> => {
+      try {
+        const response = await fetch(`https://r.jina.ai/${url}`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'X-With-Generated-Alt': 'true'
+          }
+        })
+        const json = await response.json()
+        if (!json.data || json.data.length === 0) {
+          throw new Error('No data returned from Jina API')
+        }
+        // Limit the content to 5000 characters
+        return json.data.content.slice(0, 5000)
+      } catch (error) {
+        console.error('Jina API error:', error)
+        return `An error occurred while retrieving content for "${url}".`
+      }
+    }
 
-    // Format the results to match the expected SearchResults structure
-    return {
-      results: generalResults.map(
-        (result: SearXNGResult): SearchResultItem => ({
+    // Process the search results and retrieve content using Jina API
+    const processedResults = await Promise.all(
+      data.searchResults.results.map(async (result: any): Promise<SearchResultItem> => {
+        const jinaContent = await retrieveJinaContent(result.url)
+        return {
           title: result.title,
           url: result.url,
-          content: result.content
-        })
-      ),
-      query: data.query,
-      images: imageResults
-        .map(result => {
-          const imgSrc = result.img_src || ''
-          return imgSrc.startsWith('http') ? imgSrc : `${apiUrl}${imgSrc}`
-        })
-        .filter(Boolean),
-      number_of_results: data.number_of_results
+          content: jinaContent
+        }
+      })
+    )
+
+    return {
+      results: processedResults,
+      query: data.searchResults.query,
+      images: data.searchResults.images.map((image: any): SearchResultImage => ({
+        url: image.url,
+        description: image.description
+      })),
+      number_of_results: data.searchResults.number_of_results
     }
   } catch (error) {
-    console.error('SearXNG API error:', error)
+    console.error('Search API error:', error)
     throw error
   }
 }

@@ -14,18 +14,18 @@ export const getTools = ({ uiStream, fullResponse }: ToolProps) => {
       uiStream,
       fullResponse
     }),
-    retrieve: retrieveTool({
-      uiStream,
-      fullResponse
-    })
+    // retrieve: retrieveTool({
+    //   uiStream,
+    //   fullResponse
+    // })
   }
 
-  if (process.env.SERPER_API_KEY) {
-    tools.videoSearch = videoSearchTool({
-      uiStream,
-      fullResponse
-    })
-  }
+  // if (process.env.SERPER_API_KEY) {
+  //   tools.videoSearch = videoSearchTool({
+  //     uiStream,
+  //     fullResponse
+  //   })
+  // }
 
   return tools
 }
