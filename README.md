@@ -3,7 +3,7 @@
 An AI-powered decentralized search engine with a generative UI, empowering individuals to contribute to a global index of web content.
 
 > [!NOTE]
-> This repository contains the core source code for alBERT. The official alBERT service at [app.socrathink.com](https://app.socrathink.com) includes additional features like authentication and the reward mechanism.
+> This repository contains the core source code for alBERT as a boilerplate for anyone to fork and build answer engines on. A sample implementation of alBERT's service done for the Socrathink browser is at [app.socrathink.com](https://app.socrathink.com) includes additional features like authentication and the reward mechanism.
 
 ## 🗂️ Overview
 
@@ -23,7 +23,7 @@ An AI-powered decentralized search engine with a generative UI, empowering indiv
 - Share search results
 - Get answers from specified URLs
 - Support for multiple AI providers
-- Decentralized graph-vector database
+- Decentralized vector database
 
 ## 🧱 Stack
 
@@ -31,7 +31,7 @@ An AI-powered decentralized search engine with a generative UI, empowering indiv
 - Text streaming / Generative UI: [Vercel AI SDK](https://sdk.vercel.ai/docs)
 - Generative Model: Multiple providers (OpenAI, Google, Anthropic, etc.)
 - Search API: Custom alBERT protocol
-- Decentralized Database: Custom graph-vector database
+- Decentralized Database: Custom vector database
 - Component library: [shadcn/ui](https://ui.shadcn.com/)
 - Styling: [Tailwind CSS](https://tailwindcss.com/)
 
